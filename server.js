@@ -2,12 +2,10 @@ const express = require("express");
 const puppeteer = require("puppeteer");
 const axios = require("axios");
 const cors = require("cors");
-require("dotenv").config(); // Load environment variables from .env
+require("dotenv").config();
 
 const app = express();
-app.use(cors({
-  origin: process.env.NEXTAUTH_URL || "https://your-app-name.vercel.app", // Restrict to your Vercel app
-})); 
+app.use(cors());
 app.use(express.json());
 
 const youtubeKeys = process.env.YOUTUBE_API_KEYS ? process.env.YOUTUBE_API_KEYS.split(",") : [];
@@ -23,8 +21,8 @@ app.get("/youtube", async (req, res) => {
   try {
     // Try scraping first
     const browser = await puppeteer.launch({
-      headless: "new", // Updated for newer Puppeteer versions
-      args: ["--no-sandbox", "--disable-setuid-sandbox"], // Required for cloud hosting
+      headless: "new",
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
     });
     const page = await browser.newPage();
     await page.goto(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`, { waitUntil: "networkidle2" });
@@ -35,6 +33,7 @@ app.get("/youtube", async (req, res) => {
     await browser.close();
 
     if (videoId) {
+      console.log(`Scraped videoId: ${videoId} for query: ${query}`);
       return res.json({ videoId, items: [{ snippet: { videoId } }] });
     }
 
@@ -48,17 +47,16 @@ app.get("/youtube", async (req, res) => {
     const response = await axios.get(
       `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&q=${encodeURIComponent(query)}&maxResults=${limit}&key=${key}`
     );
+    console.log(`YouTube API Response for query ${query}:`, response.data);
     const items = response.data.items || [];
     res.json({ videoId: items[0]?.id.videoId || "", items });
   } catch (error) {
-    console.error("Proxy Fetch Error:", error.message);
-    res.status(500).json({ error: "Failed to fetch from proxy", items: [] });
+    console.error("Proxy Fetch Error:", {
+      message: error.message,
+      stack: error.stack,
+    });
+    res.status(502).json({ error: "Failed to fetch from proxy", items: [] });
   }
-});
-
-// Health check endpoint for Render
-app.get("/health", (req, res) => {
-  res.status(200).json({ status: "healthy" });
 });
 
 const PORT = process.env.PORT || 3001;
