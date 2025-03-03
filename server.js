@@ -1,5 +1,6 @@
 const express = require("express");
-const puppeteer = require("puppeteer");
+const { install, resolve } = require("@puppeteer/browsers");
+const puppeteer = require("puppeteer-core");
 const axios = require("axios");
 const cors = require("cors");
 require("dotenv").config();
@@ -11,6 +12,22 @@ app.use(express.json());
 const youtubeKeys = process.env.YOUTUBE_API_KEYS ? process.env.YOUTUBE_API_KEYS.split(",") : [];
 let currentKeyIndex = 0;
 
+// Install Chrome on startup
+async function installChrome() {
+  try {
+    const { executablePath } = await install({
+      browser: "chrome",
+      buildId: "127.0.6533.88", // Match version from error
+      cacheDir: process.env.PUPPETEER_CACHE_DIR || "/opt/render/.cache/puppeteer",
+    });
+    console.log("Chrome installed at:", executablePath);
+    return executablePath;
+  } catch (error) {
+    console.error("Failed to install Chrome:", error);
+    throw error;
+  }
+}
+
 app.get("/youtube", async (req, res) => {
   const { query, limit = 1 } = req.query;
 
@@ -19,9 +36,13 @@ app.get("/youtube", async (req, res) => {
   }
 
   try {
-    // Try scraping first
+    // Install Chrome if not already present
+    const executablePath = await installChrome();
+
+    // Try scraping with Puppeteer
     const browser = await puppeteer.launch({
       headless: "new",
+      executablePath, // Use installed Chrome
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
     });
     const page = await browser.newPage();
@@ -37,7 +58,7 @@ app.get("/youtube", async (req, res) => {
       return res.json({ videoId, items: [{ snippet: { videoId } }] });
     }
 
-    // Fallback to API key rotation
+    // Fallback to YouTube API
     if (youtubeKeys.length === 0) {
       throw new Error("No YouTube API keys provided");
     }
