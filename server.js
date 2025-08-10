@@ -23,9 +23,17 @@ app.get("/youtube", async (req, res) => {
   try {
     // Try scraping first
     const browser = await puppeteer.launch({
-      headless: "new", // Updated for newer Puppeteer versions
-      args: ["--no-sandbox", "--disable-setuid-sandbox"], // Required for cloud hosting
-    });
+  headless: true,
+  executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || puppeteer.executablePath(),
+  args: [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--single-process",
+    "--no-zygote"
+  ],
+});
+
     const page = await browser.newPage();
     await page.goto(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`, { waitUntil: "networkidle2" });
     const videoId = await page.evaluate(() => {
@@ -65,3 +73,4 @@ const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Proxy server running on port ${PORT}`);
 });
+
