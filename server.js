@@ -2,6 +2,8 @@ const express = require("express");
 const puppeteer = require("puppeteer");
 const axios = require("axios");
 const cors = require("cors");
+const fs = require("fs");
+const path = require("path");
 require("dotenv").config();
 
 const app = express();
@@ -13,6 +15,22 @@ app.use(
   })
 );
 app.use(express.json());
+
+// Detect Chromium path dynamically (works on Render)
+function getChromePath() {
+  const basePath = "/opt/render/.cache/puppeteer/chrome";
+  try {
+    if (!fs.existsSync(basePath)) return puppeteer.executablePath();
+
+    const versions = fs.readdirSync(basePath);
+    if (versions.length === 0) return puppeteer.executablePath();
+
+    return path.join(basePath, versions[0], "chrome-linux64", "chrome");
+  } catch (err) {
+    console.error("Error detecting Chrome path, falling back:", err.message);
+    return puppeteer.executablePath();
+  }
+}
 
 // YouTube API keys rotation
 const youtubeKeys = process.env.YOUTUBE_API_KEYS
@@ -29,11 +47,10 @@ app.get("/youtube", async (req, res) => {
   }
 
   try {
-    // Launch Puppeteer with bundled Chromium
+    // Launch Puppeteer with detected Chromium path
     const browser = await puppeteer.launch({
       headless: true,
-      executablePath:
-        process.env.PUPPETEER_EXECUTABLE_PATH || puppeteer.executablePath(),
+      executablePath: getChromePath(),
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
